@@ -1,42 +1,57 @@
-// A working turkey-run-game-01 entry (Node 22, standard library only): the game is this directory's
-// game/ folder, plain static files a desktop browser loads offline (game/index.html and its ES
-// modules, no library and no network request), and the program hands it in. It copies game/ and
-// screenshots/ from beside this file to /output and writes /output/dossier.json, the summary the
-// judge reads, with the vendored make.fun library. A starting point, not a winner: Turkey Dodge, a
-// plain 2D canvas game where a turkey dodges the carving knives falling at it and catches corn, with a
-// title screen, score, lives and levels, game over and restart, flat colours and no sound. Build your
-// own turkey escape game (any genre: a runner, stealth, an arcade game; any library you vendor under
-// game/, or none), put your 3 or 4 PNG or JPEG screenshots
-// in screenshots/ (the first by name is the cover) and run it.
+// turkey-run-game-01 — hand-in script (Node 22+, standard library only).
 //
-// Serve it locally with `node serve.ts`, then open http://localhost:8080.
-// Outside the grader's container, MAKEFUN_OUTPUT_DIR stands in for /output:
+// What this does, in plain terms: the playable game lives in game/ next to
+// this file (static files a desktop browser can open offline, no network),
+// the screenshots live in screenshots/, and this script packs both into the
+// output folder the grader reads, then writes dossier.json there — the
+// summary the judge reads, built by the vendored make.fun library.
+//
+// The game itself is "Gobbles Kabur dari Dapur": a turkey escapes the
+// kitchen, dodging falling carving knives and catching corn, with a title
+// screen, score, lives, levels, game over and restart.
+//
+// How to run it outside the grader's container (there MAKEFUN_OUTPUT_DIR
+// is /output already):
 //   mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
+// To play it locally instead: `node serve.ts`, then open http://localhost:8080.
 
 import { cpSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildDossier } from './vendor/makefun-game.ts';
 
-const here = fileURLToPath(new URL('.', import.meta.url));
-const out = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
+// The folder this file sits in, and the folder the entry is handed in to.
+const repoRoot = fileURLToPath(new URL('.', import.meta.url));
+const handInDir = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
 
-mkdirSync(out, { recursive: true });
-cpSync(join(here, 'game'), join(out, 'game'), { recursive: true });
-mkdirSync(join(out, 'screenshots'), { recursive: true });
-if (existsSync(join(here, 'screenshots'))) cpSync(join(here, 'screenshots'), join(out, 'screenshots'), { recursive: true });
+// Put one source folder into the hand-in folder, creating it if needed.
+function stageFolder(name: string): void {
+  mkdirSync(join(handInDir, name), { recursive: true });
+  cpSync(join(repoRoot, name), join(handInDir, name), { recursive: true });
+}
 
-// The scorer's own caps (reference/gate.json): only text_max_bytes shapes the bytes; the others refuse an entry the
-// scorer would refuse (more than 4 screenshots or one over 256 KiB; more than 993 files in game/ or 48 MiB of game
-// files, in all, or a path under game/ over 1000 bytes: game/ counts beside /output's own 1000-entry cap, its
-// screenshots/ and dossier.json).
-writeFileSync(
-  join(out, 'dossier.json'),
-  buildDossier(out, {
-    text_max_bytes: 163840,
-    screenshots: { max: 4, max_bytes: 262144 },
-    game_max_files: 993,
-    game_max_bytes: 50331648,
-    game_path_max_bytes: 1000,
-  }),
-);
+mkdirSync(handInDir, { recursive: true });
+stageFolder('game');
+
+// Screenshots are optional on disk, but the folder must exist in the output;
+// copy them only when the repo actually has some.
+mkdirSync(join(handInDir, 'screenshots'), { recursive: true });
+if (existsSync(join(repoRoot, 'screenshots'))) {
+  cpSync(join(repoRoot, 'screenshots'), join(handInDir, 'screenshots'), { recursive: true });
+}
+
+// The caps the scorer itself uses (from its gate.json): only the text cap
+// changes what the dossier contains; the rest make this script fail in the
+// same places the scorer would refuse the entry — at most 4 screenshots of
+// at most 256 KiB each, at most 993 entries / 48 MiB inside game/ (the
+// grader caps /output at 1000 entries total, and game/ counts together with
+// screenshots/ and dossier.json), and no game path longer than 1000 bytes.
+const gateCaps = {
+  text_max_bytes: 163840,
+  screenshots: { max: 4, max_bytes: 262144 },
+  game_max_files: 993,
+  game_max_bytes: 50331648,
+  game_path_max_bytes: 1000,
+};
+
+writeFileSync(join(handInDir, 'dossier.json'), buildDossier(handInDir, gateCaps));
